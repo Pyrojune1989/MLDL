@@ -3,6 +3,7 @@ from qiskit.circuit.library import GroverOperator
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.cluster import KMeans
+from functools import lru_cache
 
 # Hebrew Letters Mapping
 hebrew_letters = [
@@ -31,6 +32,14 @@ def generate_sequence(n_terms=29):
         sequence.append((letter, symbol, increment, result))
     return sequence
 
+# Define a simple oracle for Grover's algorithm
+def simple_oracle(nqubits):
+    oracle = QuantumCircuit(nqubits)
+    oracle.x(nqubits - 1)  # Example: Flip the last qubit
+    oracle.cz(0, nqubits - 1)  # Example: Controlled-Z gate
+    oracle.x(nqubits - 1)
+    return oracle
+
 # Optimized Quantum Network Class with Grover's Algorithm
 class OptimizedQuantumNetwork:
     def __init__(self, nqubits):
@@ -41,7 +50,8 @@ class OptimizedQuantumNetwork:
         # Initialize the circuit with Hadamard gates
         self.qc.h(range(self.nqubits))
         # Apply Grover's diffuser and oracle
-        grover_operator = GroverOperator(oracle=None)  # For now, assuming no specific oracle
+        oracle = simple_oracle(self.nqubits)
+        grover_operator = GroverOperator(oracle=oracle)
         self.qc.append(grover_operator, range(self.nqubits))
 
     def simulate(self):
@@ -56,12 +66,16 @@ class NASAPathFinderVisualizer:
         self.weights = generate_sequence(grid_size * grid_size)
 
     def solve(self, n, m, x, y):
-        if x >= n or y >= m:
-            return 0
-        if x == n - 1 and y == m - 1:
-            return 1
-        weight = self.weights[(x * m + y) % len(self.weights)][2]  # Use sequence weight
-        return weight * (self.solve(n, m, x + 1, y) + self.solve(n, m, x, y + 1))
+        @lru_cache(None)  # Memoization to cache results
+        def helper(x, y):
+            if x >= n or y >= m:
+                return 0
+            if x == n - 1 and y == m - 1:
+                return 1
+            weight = self.weights[(x * m + y) % len(self.weights)][2]  # Use sequence weight
+            return weight * (helper(x + 1, y) + helper(x, y + 1))
+        
+        return helper(x, y)
 
     def visualize_solution(self, n, m, path):
         grid = np.zeros((n, m))
@@ -72,6 +86,11 @@ class NASAPathFinderVisualizer:
 
         plt.imshow(grid, cmap='Greys', interpolation='nearest')
         plt.title("Pathfinding Solution")
+        plt.xlabel("Columns")
+        plt.ylabel("Rows")
+        plt.xticks(range(m))
+        plt.yticks(range(n))
+        plt.grid(visible=True, which='both', color='black', linestyle='--', linewidth=0.5)
         plt.show()
 
 # Movement Sequence Generator Using Sequence
@@ -81,8 +100,9 @@ def move_sequence(start_x, start_y):
     sequence = generate_sequence(len(movements))
 
     for i, (dx, dy) in enumerate(movements):
-        new_x = path[-1][0] + dx * sequence[i][2] % 4  # Modulo to limit movement range
-        new_y = path[-1][1] + dy * sequence[i][2] % 4
+        increment = sequence[i][2]
+        new_x = path[-1][0] + divmod(dx * increment, 4)[1]  # Ensure positive modulo
+        new_y = path[-1][1] + divmod(dy * increment, 4)[1]
         path.append((new_x, new_y))
     return path
 
@@ -99,6 +119,8 @@ class MovementSequenceAnalyzer:
         return np.array(features)
 
     def analyze_with_kmeans(self, n_clusters=2):
+        if n_clusters > len(self.data):
+            raise ValueError("Number of clusters cannot exceed the number of data points.")
         kmeans = KMeans(n_clusters=n_clusters)
         kmeans.fit(self.data)
         return kmeans.labels_
