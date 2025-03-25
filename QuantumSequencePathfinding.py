@@ -1,7 +1,8 @@
 try:
     from qiskit import Aer
 except ImportError:
-    raise ImportError("qiskit-aer is not installed. Please install it using 'pip install qiskit-aer'.")
+    print("qiskit-aer is not installed. Please install it using 'pip install qiskit-aer'.")
+    exit(1)
 
 from qiskit import QuantumCircuit, execute
 from qiskit.circuit.library import GroverOperator
