@@ -170,3 +170,4 @@ def process_user_input(user_input):
 # Execute training and saving
 train_and_save_deep_learning_model()
 
+# Load the model
