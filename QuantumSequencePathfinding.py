@@ -1,4 +1,9 @@
-from qiskit import QuantumCircuit, Aer, execute
+try:
+    from qiskit import Aer
+except ImportError:
+    raise ImportError("qiskit-aer is not installed. Please install it using 'pip install qiskit-aer'.")
+
+from qiskit import QuantumCircuit, execute
 from qiskit.circuit.library import GroverOperator
 import matplotlib.pyplot as plt
 import numpy as np
