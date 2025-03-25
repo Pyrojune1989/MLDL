@@ -12,6 +12,12 @@ import pennylane as qml
 from pennylane import numpy as np
 import cirq
 
+try:
+    dev = qml.device("cirq.simulator", wires=1)
+    print("Cirq simulator initialized successfully!")
+except qml.DeviceError as e:
+    print("Error initializing Cirq simulator:", e)
+
 print(qml.device('cirq.simulator', wires=1))
 
 # Hebrew Letters Mapping
