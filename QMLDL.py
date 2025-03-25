@@ -1,18 +1,14 @@
-from qiskit import QuantumCircuit
-from qiskit.circuit.library import GroverOperator
-import matplotlib.pyplot as plt
 import numpy as np
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from qiskit import QuantumCircuit, Aer, execute
+from qiskit.circuit import Parameter
+import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from functools import lru_cache
-from qiskit_aer import AerSimulator  # Update import
-from qiskit.transpiler import PassManager
-from qiskit.transpiler.passes import BasisTranslator
-from qiskit.circuit.equivalence_library import SessionEquivalenceLibrary
 import pennylane as qml
-from pennylane import numpy as np
 import cirq
-
-print(qml.device('cirq.simulator', wires=1))
 
 # Hebrew Letters Mapping
 hebrew_letters = [
@@ -41,13 +37,34 @@ def generate_sequence(n_terms=29):
         sequence.append((letter, symbol, increment, result))
     return sequence
 
-# Define a simple oracle for Grover's algorithm
-def simple_oracle(nqubits):
-    oracle = QuantumCircuit(nqubits)
-    oracle.x(nqubits - 1)  # Example: Flip the last qubit
-    oracle.cz(0, nqubits - 1)  # Example: Controlled-Z gate
-    oracle.x(nqubits - 1)
-    return oracle
+# Quantum Feature Map Setup
+def create_quantum_feature_map():
+    n_qubits = 2  # Number of qubits
+    circ = QuantumCircuit(n_qubits)
+    theta = Parameter('θ')
+
+    # Example of a quantum feature map (entangling gates + rotation gates)
+    circ.h(0)
+    circ.cx(0, 1)
+    circ.rz(theta, 0)
+    circ.rz(theta, 1)
+
+    return circ
+
+# Run the quantum circuit to get features
+def get_quantum_features(data, feature_map):
+    simulator = Aer.get_backend('statevector_simulator')
+
+    # Use the data as parameters for the quantum circuit
+    theta_values = np.array(data)  # Assuming data is preprocessed and ready to use
+
+    features = []
+    for theta in theta_values:
+        feature_map = feature_map.bind_parameters({feature_map.parameters[0]: theta})
+        result = execute(feature_map, simulator).result()
+        statevector = result.get_statevector()
+        features.append(np.abs(statevector)**2)  # Get the probability distribution
+    return np.array(features)
 
 # Optimized Quantum Network Class with PennyLane and Cirq
 class OptimizedQuantumNetwork:
@@ -148,23 +165,79 @@ class MovementSequenceAnalyzer:
         kmeans.fit(self.data)
         return kmeans.labels_
 
-# Example Usage
-if __name__ == "__main__":
-    # 1. Quantum Network
-    quantum_network = OptimizedQuantumNetwork(3)  # 3 qubits
-    results = quantum_network.simulate()
-    print("Optimized Quantum Results:", results)
+# Data Augmentation Setup
+datagen = ImageDataGenerator(
+    rotation_range=20,  # Randomly rotate images by 20 degrees
+    width_shift_range=0.2,  # Shift images horizontally
+    height_shift_range=0.2,  # Shift images vertically
+    shear_range=0.2,  # Apply shearing transformations
+    zoom_range=0.2,  # Random zoom
+    horizontal_flip=True,  # Randomly flip images
+    fill_mode='nearest'  # Fill missing pixels after transformations
+)
 
-    # 2. Pathfinding with Visualization
+# Prepare MNIST Data
+mnist = tf.keras.datasets.mnist
+(train_images, train_labels), (test_images, test_labels) = mnist.load_data()
+train_images = train_images.reshape((60000, 28, 28, 1)).astype('float32') / 255
+test_images = test_images.reshape((10000, 28, 28, 1)).astype('float32') / 255
+
+# Apply data augmentation
+datagen.fit(train_images)
+
+# Hybrid Quantum-Classical Model
+def create_hybrid_model(input_shape):
+    model = models.Sequential([
+        layers.InputLayer(input_shape=input_shape),
+        layers.Dense(128, activation='relu'),
+        layers.Dense(10, activation='softmax')
+    ])
+    model.compile(optimizer='adam',
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+    return model
+
+# Combine augmented data with quantum features and train the hybrid model
+def combine_augmented_and_quantum_data():
+    quantum_feature_map = create_quantum_feature_map()
+    augmented_train_data = datagen.flow(train_images[:1000], train_labels[:1000], batch_size=32)
+    
+    augmented_quantum_data = []
+    augmented_labels = []
+
+    for i, (augmented_images, augmented_labels_batch) in enumerate(augmented_train_data):
+        quantum_features = get_quantum_features(augmented_images.reshape(32, -1), quantum_feature_map)
+        augmented_quantum_data.append(quantum_features)
+        augmented_labels.append(augmented_labels_batch)
+    
+    # Flatten the augmented quantum data for training
+    augmented_quantum_data = np.concatenate(augmented_quantum_data, axis=0)
+    augmented_labels = np.concatenate(augmented_labels, axis=0)
+    
+    return augmented_quantum_data, augmented_labels
+
+# Train and evaluate the hybrid model
+def train_model():
+    augmented_quantum_data, augmented_labels = combine_augmented_and_quantum_data()
+    model = create_hybrid_model(augmented_quantum_data.shape[1:])
+    model.fit(augmented_quantum_data, augmented_labels, epochs=5)
+    quantum_features_test = get_quantum_features(test_images[:10].reshape(10, -1), create_quantum_feature_map())
+    test_loss, test_acc = model.evaluate(quantum_features_test, test_labels[:10], verbose=2)
+    print(f'\nTest accuracy with augmented quantum features: {test_acc}')
+
+# Main Execution
+if __name__ == "__main__":
+    print("Training hybrid quantum-classical model...")
+    train_model()
+
+    print("\nTesting NASA Path Finder with visualization...")
     path_finder = NASAPathFinderVisualizer(4)
     path = [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2), (3, 2), (3, 3)]  # Example path
     path_finder.visualize_solution(4, 4, path)
 
-    # 3. Movement Sequence with Numerical Influence
+    print("\nMovement sequence with KMeans clustering...")
     sequence = move_sequence(0, 0)
     print("Generated Movement Sequence:", sequence)
-
-    # 4. Apply KMeans for Sequence Pattern Recognition
     analyzer = MovementSequenceAnalyzer(sequence)
     labels = analyzer.analyze_with_kmeans(n_clusters=2)
     print("Cluster Labels for Movement Sequence:", labels)
