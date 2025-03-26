@@ -171,3 +171,22 @@ def process_user_input(user_input):
 train_and_save_deep_learning_model()
 
 # Load the model
+from tensorflow.keras.models import load_model
+model_file = 'deep_learning_model.h5'
+model = load_model(model_file)
+# Load test data for chat
+x_train, x_test, y_train, y_test = joblib.load('deep_learning_train_test_data.pkl')
+# Chat with the model
+chat_with_model(model, x_test)
+# This code implements a machine learning and deep learning framework using python
+# save the train and test data for future use
+joblib.dump((x_train, x_test, y_train, y_test), 'deep_learning_train_test_data.pkl')
+# Note: The above code assumes that the user will input numeric values corresponding to the features used in the model.
+# The chat_with_model function allows interaction with the model, where the user can input features amd receive predictions.
+# The process user input function processes the user input and converts it into thenappropriate format for the model to make predictions.
+# the model's predictions are printed as the model's response.
+# The chat continues until the user types 'exit', at which point the combersation ends.
+# The code also includes error handling to manage invalid inputs gracefully.
+
+
+

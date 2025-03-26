@@ -174,3 +174,11 @@ if __name__ == "__main__":
     analyzer = MovementSequenceAnalyzer(sequence)
     labels = analyzer.analyze_with_kmeans(n_clusters=2)
     print("Cluster Labels for Movement Sequence:", labels)
+    # 5. Generate and visualize the movement sequence
+    plt.plot(*zip(*sequence), marker='o')
+    plt.title("Movement Sequence Path")
+    plt.xlabel("x_coordinate")
+    plt.ylabel("y_coordinate")
+    plt.grid()
+    plt.show()
+    # 6. Save the model (if needed)
